@@ -1,0 +1,82 @@
+.tg {
+    font-family: Verdana, Geneva, sans-serif;
+    font-size: 14px;
+    border-collapse: collapse;
+    border-spacing: 0;
+    border: 1px solid #aaa;
+    margin: 1%;
+}
+
+.tg td {
+    padding: 10px 5px;
+    border: 0 solid #aaa;
+    overflow: hidden;
+    word-break: normal;
+    color: #333;
+    background-color: #fff;
+}
+
+.tg th {
+    font-weight: normal;
+    padding: 10px 5px;
+    border: 0 solid #aaa;
+    overflow: hidden;
+    word-break: normal;
+    color: #fff;
+    background-color: darkorange;
+}
+
+.tg .tg-pattern {
+    background-color: orange;
+}
+
+.tg .tg-session-h {
+    background-color: gold;
+}
+
+.tg .tg-session-d {
+    background-color: lightgoldenrodyellow;
+}
+
+.tg .tg-data {
+    text-align: center;
+}
+
+h1 {
+    font-family: Verdana, Geneva, sans-serif;
+    font-size: 32px;
+    margin: 1%;
+}
+
+.execute {
+    width: 200px;
+    border: 0;
+    line-height: 2.5;
+    padding: 0 20px;
+    margin: 1%;
+    font-family: Verdana, Geneva, sans-serif;
+    font-size: 14px;
+    text-align: center;
+    color: #fff;
+    text-shadow: 1px 1px 1px #000;
+    border-radius: 10px;
+    background: rgba(220, 0, 0, 1) linear-gradient(to top left,
+    rgba(0, 0, 0, .2),
+    rgba(0, 0, 0, .2) 30%,
+    rgba(0, 0, 0, 0));
+    box-shadow: inset 2px 2px 3px rgba(255, 255, 255, .6),
+    inset -2px -2px 3px rgba(0, 0, 0, .6);
+}
+
+.execute:hover {
+    background-color: rgba(255, 0, 0, 1);
+}
+
+.execute:disabled {
+    background-color: rgba(128, 128, 128, 1);
+}
+
+.execute:active {
+    box-shadow: inset -2px -2px 3px rgba(255, 255, 255, .6),
+    inset 2px 2px 3px rgba(0, 0, 0, .6);
+}
