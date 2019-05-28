@@ -264,10 +264,7 @@ var config = {};
 var server = function server() {
   var REELS = 3;
   var ROWS = 3;
-  var PAYLINES = 10; // minimum bet
-  var KEEP = 0;
-  var DELETE = 1;
-  var STICKY = 2;
+  var MINIMUM_BET = 10;
 
   var values = {};
   var pays = {};
@@ -275,10 +272,9 @@ var server = function server() {
   var wildX = {};
   var isScatter = {};
   var scatterSymbols = [];
-  var isLine = {};
+  var isWay = {};
   var isSplatter = {};
   var symbolCountKeys = [];
-  var paylineShapes = [];
   var reels = []; // pointer to base and free reels
   var reelsBase = [];
   var reelsFree = [];
@@ -287,63 +283,9 @@ var server = function server() {
   var reelLengthsFree = [];
   var reelView = [];
   var valueView = [];
-  var reelViewState = new Array(REELS * ROWS).fill(KEEP);
-  var cascadeStops = [0, 0, 0, 0, 0];
-  var lookupTable = {};
   var pattern = void 0;
   var patternHits = void 0;
   var patternCollections = 0;
-
-  var evaluateLine = function evaluateLine(line) {
-    var result = {};
-    var index = 0;
-    var multiplier = 1;
-    result.count = 0;
-    result.symbol = line[index];
-    while (line[index] === result.symbol || isWild[line[index]] || isWild[result.symbol]) {
-      var li = line[index];
-      if (isScatter[li]) {
-        break;
-      }
-      result.count += 1;
-      if (isWild[li]) {
-        result.hasWild = true;
-        multiplier = wildX[li];
-      }
-      if (isWild[result.symbol] && !isWild[li]) {
-        result.symbol = li;
-      }
-      index += 1;
-      if (index === line.length) {
-        break;
-      }
-    }
-
-    if (!isScatter[result.symbol]) {
-      result.win = pays[result.symbol][result.count - 1];
-    }
-    if (isLine[result.symbol]) {
-      result.win *= multiplier;
-    }
-    index = 0;
-    result.wildCount = 0;
-    while (isWild[line[index]]) {
-      result.wildCount += 1;
-      index += 1;
-      if (index === line.length) {
-        break;
-      }
-    }
-    if (result.wildCount > 0) {
-      var wildWin = pays[line[0]][result.wildCount - 1];
-      if (wildWin >= result.win) {
-        result.win = wildWin;
-        result.symbol = line[0];
-        result.count = result.wildCount;
-      }
-    }
-    return result;
-  };
 
   function init() {
     config.symbols.forEach(function (x) {
@@ -356,7 +298,7 @@ var server = function server() {
       isWild[symbolId] = false;
       wildX[symbolId] = 1;
       isScatter[symbolId] = false;
-      isLine[symbolId] = true;
+      isWay[symbolId] = true;
       isSplatter[symbolId] = false;
     });
     if (config.wilds) {
@@ -364,43 +306,15 @@ var server = function server() {
         var symbolId = x.symbol;
         isWild[symbolId] = true;
         wildX[symbolId] = x.multiplier;
-        isLine[symbolId] = false;
+        isWay[symbolId] = false;
       });
     }
     if (config.scatters) {
       config.scatters.forEach(function (x, i) {
         var symbolId = x.symbol;
         isScatter[symbolId] = true;
-        isLine[symbolId] = false;
+        isWay[symbolId] = false;
         scatterSymbols[i] = symbolId;
-      });
-    }
-    if (config.paylines) {
-      var uniqueValuesSet = new Set();
-      Object.keys(values).forEach(function (v) {
-        return uniqueValuesSet.add(values[v]);
-      });
-      var uniqueValues = Array.from(uniqueValuesSet);
-      var uVL = uniqueValues.length;
-      for (var i1 = 0; i1 < uVL; i1 += 1) {
-        for (var i2 = 0; i2 < uVL; i2 += 1) {
-          for (var i3 = 0; i3 < uVL; i3 += 1) {
-            for (var i4 = 0; i4 < uVL; i4 += 1) {
-              for (var i5 = 0; i5 < uVL; i5 += 1) {
-                var iLine = [uniqueValues[i1], uniqueValues[i2], uniqueValues[i3], uniqueValues[i4], uniqueValues[i5]];
-                var iEvaluation = evaluateLine(iLine);
-                if (iEvaluation.win > 0) {
-                  lookupTable[iLine.join('')] = iEvaluation;
-                }
-              }
-            }
-          }
-        }
-      }
-      config.paylines.forEach(function (x, i) {
-        paylineShapes[i] = x.map(function (row, index) {
-          return row + index * ROWS;
-        });
       });
     }
     config.reels.forEach(function (x) {
@@ -427,71 +341,44 @@ var server = function server() {
   };
 
   var setNextReelView = function setNextReelView() {
-    var x = 0;
+    reelView = [];
     for (var i = 0; i < REELS; i += 1) {
       var stop = Math.floor(rng() * reelLengths[i]);
-      cascadeStops[i] = [stop];
       var symbols = getReelSymbolsAt(reels[i], stop);
-      for (var j = 0; j < ROWS; j += 1) {
-        reelView[x] = symbols[j];
-        valueView[x] = values[symbols[j]];
-        x += 1;
-      }
+      reelView = reelView.concat(symbols);
+      valueView[i] = symbols.map(function (s) {
+        return values[s];
+      });
     }
   };
 
   var evaluateReelView = function evaluateReelView() {
     var spinResult = {};
-    reelViewState = valueView.map(function () {
-      return KEEP;
-    });
     // check scatters
     spinResult.scatters = [];
     spinResult.scattersTotal = 0;
     scatterSymbols.forEach(function (scatter) {
-      var scatterWin = 0;
-      var scatterPositions = [];
-      var count = reelView.reduce(function (total, symbol, position) {
-        var newTotal = void 0;
-        if (symbol === scatter) {
-          newTotal = total + 1;
-          scatterPositions.push(position);
-        } else {
-          newTotal = total;
-        }
-        return newTotal;
+      var count = reelView.reduce(function (total, symbol) {
+        return symbol === scatter ? total + 1 : total;
       }, 0);
-      if (count > 0) {
-        scatterWin = pays[scatter][count - 1] * PAYLINES;
-        scatterPositions.forEach(function (position) {
-          reelViewState[position] = DELETE;
-        });
-      }
+      var scatterWin = count > 0 ? pays[scatter][count - 1] * MINIMUM_BET : 0;
       spinResult.scatters.push({ scatter: scatter, count: count, scatterWin: scatterWin });
       spinResult.scattersTotal += scatterWin;
     });
-    // check ways of valueView
+    // analyse ways of valueView
     var counts = {};
     config.symbols.forEach(function (x) {
       return counts[x.value] = new Array(REELS).fill(0);
     });
-    var symbolsToCheck = new Set();
-    // examine first reel
-    var reel = 0;
-    for (var row = 0; row < ROWS; row += 1) {
-      var symbol = valueView[row];
-      counts[symbol][reel] += 1;
-      symbolsToCheck.add(symbol);
-    }
-    // examine remaining reels
-    for (var _row = ROWS; _row < valueView.length; _row += 1) {
-      var _symbol = valueView[_row];
-      if (_row % ROWS === 0) {
-        reel += 1;
-      }
-      counts[_symbol][reel] += 1;
-    }
-    // collect ways
+    valueView.forEach(function (reel, id) {
+      reel.forEach(function (symbol) {
+        counts[symbol][id] += 1;
+      });
+    });
+    var symbolsToCheck = valueView[0].reduce(function (acc, symbol) {
+      return acc.add(symbol);
+    }, new Set());
+    // collect ways of valueView
     spinResult.ways = [];
     spinResult.total = 0;
     symbolsToCheck.forEach(function (symbol) {
@@ -505,67 +392,7 @@ var server = function server() {
       spinResult.ways.push({ symbol: symbol, count: count, ways: ways, win: win });
       spinResult.total += win;
     });
-    // stick wilds
-    reelView.forEach(function (value, index) {
-      if (isWild[value]) {
-        reelViewState[index] = STICKY;
-      }
-    });
     return spinResult;
-  };
-
-  var cascadeReel = function cascadeReel(reelViewIndex, reelIndex) {
-    var newReelView = new Array(ROWS).fill('');
-    var availableRows = [];
-
-    for (var row = ROWS - 1; row >= 0; row -= 1) {
-      var currentRow = reelViewIndex + row;
-      switch (reelViewState[currentRow]) {
-        case 0:
-          // keep
-          if (availableRows.length > 0) {
-            newReelView[availableRows.shift() - reelViewIndex] = reelView[currentRow];
-            availableRows.push(currentRow);
-          } else {
-            newReelView[row] = reelView[currentRow];
-          }
-          break;
-        case 1:
-          // drop
-          availableRows.push(currentRow);
-          break;
-        case 2:
-          // sticky
-          newReelView[row] = reelView[currentRow];
-          break;
-        default:
-          throw Error('no default');
-      }
-    }
-    while (availableRows.length > 0) {
-      cascadeStops[reelIndex] -= 1;
-      if (cascadeStops[reelIndex] < 0) {
-        cascadeStops[reelIndex] = reels[reelIndex].length - 1;
-      }
-      newReelView[availableRows.shift() - reelViewIndex] = reels[reelIndex][cascadeStops[reelIndex]];
-    }
-    // for (let row = 0; row < ROWS; row += 1) {
-    //   const currentRow = reelViewIndex + row;
-    //   console.log(reelView[currentRow], reelViewState[currentRow], newReelView[row]);
-    // }
-    return newReelView;
-  };
-
-  var processCascade = function processCascade() {
-    var newReels = [];
-    newReels = newReels.concat(cascadeReel(0, 0));
-    newReels = newReels.concat(cascadeReel(3, 1));
-    newReels = newReels.concat(cascadeReel(6, 2));
-    newReels = newReels.concat(cascadeReel(9, 3));
-    newReels = newReels.concat(cascadeReel(12, 4));
-    newReels.forEach(function (value, index) {
-      reelView[index] = value;
-    });
   };
 
   var getCollectionPrize = function getCollectionPrize() {
@@ -575,7 +402,7 @@ var server = function server() {
       prob -= config.collections.prizes[index].probability;
       index += 1;
     }
-    return config.collections.prizes[index].prize * PAYLINES;
+    return config.collections.prizes[index].prize * MINIMUM_BET;
   };
 
   var doSpin = function doSpin(isBase) {
@@ -590,7 +417,7 @@ var server = function server() {
 
     if (isBase) {
       pattern.positions.forEach(function (p, i) {
-        if (valueView[p] === pattern.symbol) {
+        if (reelView[p] === pattern.symbol) {
           patternHits[i] = true;
         }
       });
@@ -615,38 +442,6 @@ var server = function server() {
       }
     }
 
-    var cascadeResult = Object.create(null);
-    cascadeResult.cascades = 0;
-    cascadeResult.total = 0;
-    var cascadeMultiplier = 1;
-    //let canCascade = (result.scattersTotal + result.total) > 0;
-    var canCascade = false;
-    while (canCascade) {
-      processCascade();
-      var x = 0;
-      for (var i = 0; i < REELS; i += 1) {
-        for (var j = 0; j < ROWS; j += 1) {
-          valueView[x] = values[reelView[x]];
-          x += 1;
-        }
-      }
-      var newResult = evaluateReelView();
-      cascadeResult.cascades += 1;
-      cascadeResult.total += (newResult.scattersTotal + newResult.total) * cascadeMultiplier;
-      if (cascadeMultiplier < 6) {
-        cascadeMultiplier += 1;
-      }
-      canCascade = newResult.scattersTotal + newResult.total > 0;
-
-      if (newResult.scattersTotal > 0) {
-        // free game trigger
-        freeGamesAwarded += FREE_GAMES_AWARDED;
-        report.freeGameTriggers += 1;
-      }
-    }
-
-    spinTotal += cascadeResult.total;
-
     return { spinTotal: spinTotal, freeGamesAwarded: freeGamesAwarded, prize: prize };
   };
 
@@ -661,7 +456,6 @@ var server = function server() {
     report.total = {};
     report.total.coin = 0;
     report.total.count = 0;
-    report.total.cascadeCoin = 0;
     report.total.freeCoin = 0;
     report.total.collectionCoin = 0;
     report.baseWins = {};
@@ -709,11 +503,11 @@ var server = function server() {
 
       if (spin % 1000000 === 0) {
         report.progress.currentStep += 1;
-        report.progress.currentRTP = (100 * report.total.coin / (report.total.count * PAYLINES)).toFixed(3);
+        report.progress.currentRTP = (100 * report.total.coin / (report.total.count * MINIMUM_BET)).toFixed(3);
         report.updater({ progress: report.progress });
       }
     }
-    report.total.bet = spins * PAYLINES;
+    report.total.bet = spins * MINIMUM_BET;
     report.total.rtp = (report.total.coin / report.total.bet).toFixed(5);
     console.timeEnd(config.name);
   };
@@ -723,9 +517,12 @@ var server = function server() {
     report.total = {};
     report.total.coin = 0;
     report.total.count = 0;
-    report.total.cascadeCoin = 0;
     report.total.freeCoin = 0;
     report.total.collectionCoin = 0;
+    report.total.baseHits = 0;
+    report.total.baseSpins = 0;
+    report.total.freeHits = 0;
+    report.total.freeSpins = 0;
     report.freeGameTriggers = 0;
     report.collections = 0;
     report.collect = [];
@@ -739,7 +536,11 @@ var server = function server() {
       var baseResult = doSpin(true);
 
       report.total.count += 1;
+      report.total.baseSpins += 1;
       spin += 1;
+      if (baseResult.spinTotal > 0) {
+        report.total.baseHits += 1;
+      }
 
       var freeGamesRemaining = baseResult.freeGamesAwarded;
       var spinTotal = baseResult.spinTotal;
@@ -747,7 +548,7 @@ var server = function server() {
         report.collect.push({
           spins: spin,
           prize: baseResult.prize,
-          coinIn: report.total.count * PAYLINES,
+          coinIn: report.total.count * MINIMUM_BET,
           coinOut: report.total.coin + baseResult.spinTotal
         });
         spin = 0;
@@ -761,7 +562,11 @@ var server = function server() {
         while (freeGamesRemaining > 0) {
           freeGamesRemaining -= 1;
           var freeResult = doSpin(false);
+          report.total.freeSpins += 1;
           spinTotal += freeResult.spinTotal;
+          if (freeResult.spinTotal > 0) {
+            report.total.freeHits += 1;
+          }
           report.total.freeCoin += freeResult.spinTotal;
         }
 
@@ -771,7 +576,7 @@ var server = function server() {
 
       report.total.coin += spinTotal;
     }
-    report.total.bet = report.total.count * PAYLINES;
+    report.total.bet = report.total.count * MINIMUM_BET;
     report.total.rtp = (report.total.coin / report.total.bet).toFixed(5);
   };
 
