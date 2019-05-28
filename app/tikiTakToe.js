@@ -52,7 +52,7 @@ const processMessage = function (message) {
 };
 
 window.onload = function () {
-  const workerFeature = new Worker('../dist/workerRandomB.js');
+  const workerFeature = new Worker('./dist/workerRandomB.js');
   workerFeature.onmessage = processMessage;
 
   const config = this['gameCutters'].config;
