@@ -49,10 +49,27 @@ const processMessage = function (message) {
   table.rows[13].cells[1].textContent = sessionHRBase;
   table.rows[14].cells[1].textContent = sessionHRFree;
   table.rows[15].cells[1].textContent = sessionHRAll;
+  gc.spins[data.total.baseSpins] += 1;
+  if (data.total.baseSpins < gc.spinsMinimum) {
+    gc.spinsMinimum = data.total.baseSpins;
+  }
+  if (data.total.baseSpins > gc.spinsMaximum) {
+    gc.spinsMaximum = data.total.baseSpins
+  }
+  gc.features += 1;
+  if ((gc.spins[data.total.baseSpins]) > gc.spinsModeCount) {
+    gc.spinsModeCount = gc.spins[data.total.baseSpins];
+    gc.spinsModeIndex = data.total.baseSpins;
+  }
+  table.rows[17].cells[1].textContent = gc.spinsMinimum;
+  table.rows[17].cells[4].textContent = gc.spinsMaximum;
+  table.rows[18].cells[1].textContent = (gc.baseSpins / gc.features).toFixed(2);
+  table.rows[18].cells[4].textContent = gc.spinsModeIndex;
+  table.rows[19].cells[1].textContent = gc.features;
 };
 
 window.onload = function () {
-  const workerFeature = new Worker('./dist/workerRandomB.js');
+  const workerFeature = new Worker('../dist/workerRandomB.js');
   workerFeature.onmessage = processMessage;
 
   const config = this['gameCutters'].config;
@@ -62,6 +79,13 @@ window.onload = function () {
   this['gameCutters'].baseHits = 0;
   this['gameCutters'].freeSpins = 0;
   this['gameCutters'].freeHits = 0;
+  this['gameCutters'].spins = new Array(1200).fill(0);
+  this['gameCutters'].spinsMinimum = Infinity;
+  this['gameCutters'].spinsMaximum = -Infinity;
+  this['gameCutters'].features = 0;
+  this['gameCutters'].spinsAverage = 0;
+  this['gameCutters'].spinsModeIndex = 0;
+  this['gameCutters'].spinsModeCount = 0;
 
   let inAutoplay = false;
   let autoplayInterval = null;
